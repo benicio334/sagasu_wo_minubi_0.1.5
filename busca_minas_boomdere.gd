@@ -7,10 +7,13 @@ extends TileMap
 const cell_columna := 16
 const cell_fila := 16
 const mine_count := int(cell_columna * cell_fila * 0.20)
-# CAMBIO 5-1
+# CAMBIO 5-1, el primero es la posibilidad de que una pista no sea pista
+# el segundo es la probabilidad de que haya una mina regalada
+# y el tercero es el tiempo para que ese regalo despawnee. a cada click se randomiza
+# para cambiarlo ir a 5-1.1
 const probabilidad_pregunta := 0.20
 const probabilidad_pista := 1.0
-var tiempo_pista = randf_range(1.0,3.0)
+var tiempo_pista = 1
 
 #Tiempo para jugar, cuando partida empezada es true se activa 
 var tiempo_restante := 1000
@@ -89,6 +92,7 @@ func setupmines(avoid : Vector2i) -> void:
 func _input(event: InputEvent) -> void:
 	#No hace nada si hay gameover
 	if muerte==false:
+		#5-1.1 para rerrollear el tiempo de desaparición
 		tiempo_pista = randf_range(0.1,3.0)
 			#Click izquierdo
 		if event.is_action_pressed("ShowMeYourTrueForm"):
