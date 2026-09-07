@@ -114,6 +114,7 @@ func _input(event: InputEvent) -> void:
 				else:
 					setupmines(cellAtMouse)
 					trueForm(cellAtMouse)
+					pista_mina()
 					partida_empezada = true
 					$CanvasLayer/PanelEstado/LabelEstado.text = "Jugando"
 					$CanvasLayer/Timer.start()
