@@ -100,7 +100,7 @@ func _input(event: InputEvent) -> void:
 		# para que no se puedan clickear banderas
 			if getCellIndex(cellAtMouse) == -1:
 				return
-			if getAtlasCoords(cellAtMouse) != Vector2i(1, 0):
+			if getAtlasCoords(cellAtMouse) == Vector2i(0, 0):
 				if cells.has(0):
 					trueForm(cellAtMouse)
 					checkWin()
