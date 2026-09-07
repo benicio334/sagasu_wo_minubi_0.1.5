@@ -19,6 +19,7 @@ var offsetCoords : Vector2i
 
 # Se activa cuando empieza la escena
 func _ready() -> void:
+	randomize()
 	setupboard()
 	#estado
 	$CanvasLayer/PanelEstado/LabelEstado.text = "Toca una casilla"
@@ -27,12 +28,12 @@ func _ready() -> void:
 	#ajusta el tamaño de la pantalla al necesario
 	var viewport_size := get_viewport_rect().size
 	var board_size := Vector2(cell_fila, cell_columna) * 16
-	
+	# minf devbuelve el menor entre 2 floats, no se muy bien para qué es pero si funciona no lo arreglo
 	var scale_factor: float = minf(
 		viewport_size.x / board_size.x,
 		viewport_size.y / board_size.y
 	)
-	
+	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
 	scale = Vector2.ONE * scale_factor
 	position = (viewport_size - board_size * scale_factor) / 2
 	
@@ -85,9 +86,9 @@ func _input(event: InputEvent) -> void:
 			#Click izquierdo
 		if event.is_action_pressed("ShowMeYourTrueForm"):
 			var cellAtMouse: Vector2i =local_to_map(get_local_mouse_position())
+		# para que no se puedan clickear banderas
 			if getCellIndex(cellAtMouse) == -1:
 				return
-			# para que no se puedan clickear banderas
 			if getAtlasCoords(cellAtMouse) != Vector2i(1, 0):
 				if cells.has(0):
 					trueForm(cellAtMouse)

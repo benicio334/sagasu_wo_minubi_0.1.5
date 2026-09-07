@@ -7,13 +7,21 @@ extends TileMap
 const cell_columna := 16
 const cell_fila := 16
 const mine_count := int(cell_columna * cell_fila * 0.20)
-const tiempo_restante_sumado := 7
-const tiempo_extra_original := 5
-#Tiempo para jugar, cuando partida empezada es true se activa. En este caso mantener bajo 
-var tiempo_restante := 10
 
-#CAMBIO 1-1 tiempo de retraso de gameover
-var tiempo_extra := 5
+# CAMBIO 2-1, agregamos las posibilidades de que pase lo que no tiene que pasar, lo positivo y lo negativo es 
+# inversamente equivalente
+const probabilidad_inicial := 0.05
+const aumento_probabilidad := 0.05
+# las posibilidades de no explotar cuando deberías y viceversa son opuestas, por ejemplo si una es 60/40, 
+# la otra 40/60, por lo tanto al final una va a ser 100 y la otra 0, siendo muerte asegurada
+var probabilidad_explotar := probabilidad_inicial
+var probabilidad_desactivar:= 1-probabilidad_explotar
+# CAMBIO 2-2 por como terminó siendo el códiogo debería llamarse "no explota" pero da igual
+# esta la voy a estar declarando en cada click con un random float que me encantó
+var explota : bool
+
+#Tiempo para jugar, cuando partida empezada es true se activa 
+var tiempo_restante := 1000
 var partida_empezada := false
 var panel_size := Vector2(100, 40)
 #Muerte es gameover, cells la cantidad de casillas, cells_alrededor se usa para revelar cuando tocás una bien
@@ -31,6 +39,8 @@ func _ready() -> void:
 	$CanvasLayer/PanelEstado/LabelEstado.text = "Toca una casilla"
 	#timer
 	$CanvasLayer/PanelTiempo/LabelTiempo.text = "Tiempo: " + str(tiempo_restante)
+	#probabilidad
+	$CanvasLayer/PanelProbabilidad/LabelProbabilidad.text = "Probabilidad: " + "A favor: " + str(probabilidad_desactivar*100) + " En contra: " + str(probabilidad_explotar*100) 
 	#ajusta el tamaño de la pantalla al necesario
 	var viewport_size := get_viewport_rect().size
 	var board_size := Vector2(cell_fila, cell_columna) * 16
@@ -42,17 +52,27 @@ func _ready() -> void:
 	
 	scale = Vector2.ONE * scale_factor
 	position = (viewport_size - board_size * scale_factor) / 2
-	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
+	
 	var board_size_scaled := board_size * scale_factor
+	#PARA MI YO DEL FUTURO: por favor hacer una forma más comodo de m,over los labels porque me voy a pegar un tiro
+	# O sino acostumbrate lo suficiente como para que no lo quiera cambiar más
+	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
 #Pone el panel de estado a la izquierda ajustaddo según tamaño
 	$CanvasLayer/PanelEstado.position = Vector2(
-		position.x - $CanvasLayer/PanelEstado.size.x - 60,
+		position.x - $CanvasLayer/PanelEstado.size.x - 30,
 		position.y + board_size_scaled.y / 2 - $CanvasLayer/PanelEstado.size.y / 2
 	)
+
 #Pone el panel de timer a la derecha ajustaddo según tamaño
 	$CanvasLayer/PanelTiempo.position = Vector2(
-		position.x + board_size_scaled.x + 60,
-		position.y + board_size_scaled.y / 2 - $CanvasLayer/PanelTiempo.size.y / 2
+		position.x + board_size_scaled.x + 30,
+		position.y + board_size_scaled.y / 2 - $CanvasLayer/PanelTiempo.size.y / 0.3
+	)
+#al de probabilidad lo pongo en relación al de tiempo, un poco más abajo
+	
+	$CanvasLayer/PanelProbabilidad.position = Vector2(
+	$CanvasLayer/PanelTiempo.position.x,
+	$CanvasLayer/PanelTiempo.position.y + $CanvasLayer/PanelTiempo.size.y *4
 	)
 # Tablero vacío
 func setupboard() -> void:
@@ -71,7 +91,7 @@ func setupmines(avoid : Vector2i) -> void:
 	while getSurroundingCells(avoid, 5).has(0):
 		cells.shuffle()
 		
-		#ponemos las cells de numeros
+		#ponemos las celss de numeros
 	for y in range(cell_columna):
 		for x in range(cell_fila):
 			
@@ -95,41 +115,49 @@ func _input(event: InputEvent) -> void:
 			if getCellIndex(cellAtMouse) == -1:
 				return
 			# para que no se puedan clickear banderas
-			
 			if getAtlasCoords(cellAtMouse) != Vector2i(1, 0):
 				if cells.has(0):
-					#CAMBIO 1-2, variabole que necesito para el 1.2.1, que antes era 1.2
+					# CAMBIO 2-2 Acá se calcula la posibilidad, la cual es, bueno, la variablwe de posibilidad
+					explota = randf() > probabilidad_explotar
+					if explota==false:
+						muerte = true
+						$CanvasLayer/Timer.stop()
+						# Este mensaje diferencia cuando morís por ruleta
+						$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom, mala suerte"
+						showmeyalltrueforms(cellAtMouse)
+					
+					#CAMBIO 2-3, lo mismo que en el 1-2, comprobamos si es click a la casilla correcta
 					var casilla_sin_revelar := getAtlasCoords(cellAtMouse) == Vector2i(0, 0)
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
+					if casilla_sin_revelar:
+						probabilidad_explotar += aumento_probabilidad 
+						probabilidad_desactivar= 1-probabilidad_explotar
+						$CanvasLayer/PanelProbabilidad/LabelProbabilidad.text = "Probabilidad: " + "A favor: " + str(probabilidad_desactivar*100) + " En contra: " + str(probabilidad_explotar*100) 
+
 					trueForm(cellAtMouse)
 					checkWin()
-										#CAMBIO 1-2.1, aumento de tiempo por jugar
-					if casilla_sin_revelar:
-						tiempo_restante += tiempo_restante_sumado
-						tiempo_extra = tiempo_extra_original
-						$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante) 
+			
 			# si el clickea una mina (0), shinu
 					if cells[getCellIndex(cellAtMouse)] == 0:
-						#CAMBIO 1-3, crea una variable con x porcentaje de ser true, se reinicia cada vez
-						var explota := randf() > 0.25
-						#CAMBIO 1-4 Comprueba si debería explotar según la variable anterior
+						# CAMBIO 2-4 lo mismo que el 2-2 pero al revés
+						# lo del && muerte==false es porque sino no ponía el mensaje de derrota 
+						# si la ultima casilla tocada te había salvado la suerte
+						explota = randf() > probabilidad_desactivar
+						if explota==false && muerte==false:
+							$CanvasLayer/PanelEstado/LabelEstado.text = "Te salvaste, que buena suerte"
+							
 						if explota==true:
 							muerte = true
 							$CanvasLayer/Timer.stop()
 							$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom"
 							showmeyalltrueforms(cellAtMouse)
-							
+							return #funciona sin return pero por si acaso
 						#Sino, siga siga
-						
 				else:
 					setupmines(cellAtMouse)
 					trueForm(cellAtMouse)
 					partida_empezada = true
 					$CanvasLayer/PanelEstado/LabelEstado.text = "Jugando"
 					$CanvasLayer/Timer.start()
-
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-					
 					checkWin()
 					#Click derecho
 		if event.is_action_pressed("flag"):
@@ -225,19 +253,17 @@ func showmeyalltrueforms(avoid : Vector2i) -> void:
 					set_cell(0, cellCoords, 0, Vector2i(1, 3))
 					
 #función para timer
-#CAMBIO 1-5 (toda la función) comprueba si se acabaron ambos tiempo y tiempo extra
 func _on_timer_timeout() -> void:
-	if tiempo_restante > 0:
-		tiempo_restante -= 1
-		$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-	else:
-		tiempo_extra -= 1
+	tiempo_restante -= 1
+	$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
+	
+	if tiempo_restante <= 0:
+		muerte = true
+		$CanvasLayer/Timer.stop()
+		$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
+		showmeyalltrueforms(Vector2i(-1, -1))
 		
-		if tiempo_extra <= 0:
-			muerte = true
-			$CanvasLayer/Timer.stop()
-			$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
-			showmeyalltrueforms(Vector2i(-1, -1))
+		
 # Función para ganar
 func checkWin() -> void:
 	var unrevealed := 0
@@ -253,4 +279,7 @@ func checkWin() -> void:
 	if unrevealed == mine_count:
 		muerte = true
 		$CanvasLayer/Timer.stop()
-		$CanvasLayer/PanelEstado/LabelEstado.text = "Ganaste"
+		$CanvasLayer/PanelProbabilidad/LabelProbabilidad.text = "Probabilidad: " + "A favor: " + str(1) + " En contra: " + str(99) 
+		$CanvasLayer/PanelEstado/LabelEstado.text = "Casi, pero perdiste"
+		var cellAtMouse: Vector2i =local_to_map(get_local_mouse_position())
+		showmeyalltrueforms(cellAtMouse)

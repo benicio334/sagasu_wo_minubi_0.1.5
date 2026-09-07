@@ -7,13 +7,8 @@ extends TileMap
 const cell_columna := 16
 const cell_fila := 16
 const mine_count := int(cell_columna * cell_fila * 0.20)
-const tiempo_restante_sumado := 7
-const tiempo_extra_original := 5
-#Tiempo para jugar, cuando partida empezada es true se activa. En este caso mantener bajo 
-var tiempo_restante := 10
-
-#CAMBIO 1-1 tiempo de retraso de gameover
-var tiempo_extra := 5
+#Tiempo para jugar, cuando partida empezada es true se activa 
+var tiempo_restante := 1000
 var partida_empezada := false
 var panel_size := Vector2(100, 40)
 #Muerte es gameover, cells la cantidad de casillas, cells_alrededor se usa para revelar cuando tocás una bien
@@ -24,7 +19,6 @@ var offsetCoords : Vector2i
 
 # Se activa cuando empieza la escena
 func _ready() -> void:
-	# ya que se que existe lo pongo por las dudas, originalmente cambio 3.5
 	randomize()
 	setupboard()
 	#estado
@@ -39,10 +33,10 @@ func _ready() -> void:
 		viewport_size.x / board_size.x,
 		viewport_size.y / board_size.y
 	)
-	
+	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
 	scale = Vector2.ONE * scale_factor
 	position = (viewport_size - board_size * scale_factor) / 2
-	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
+	
 	var board_size_scaled := board_size * scale_factor
 #Pone el panel de estado a la izquierda ajustaddo según tamaño
 	$CanvasLayer/PanelEstado.position = Vector2(
@@ -71,7 +65,7 @@ func setupmines(avoid : Vector2i) -> void:
 	while getSurroundingCells(avoid, 5).has(0):
 		cells.shuffle()
 		
-		#ponemos las cells de numeros
+		#ponemos las celss de numeros
 	for y in range(cell_columna):
 		for x in range(cell_fila):
 			
@@ -92,44 +86,28 @@ func _input(event: InputEvent) -> void:
 			#Click izquierdo
 		if event.is_action_pressed("ShowMeYourTrueForm"):
 			var cellAtMouse: Vector2i =local_to_map(get_local_mouse_position())
+		# para que no se puedan clickear banderas
 			if getCellIndex(cellAtMouse) == -1:
 				return
-			# para que no se puedan clickear banderas
-			
 			if getAtlasCoords(cellAtMouse) != Vector2i(1, 0):
 				if cells.has(0):
-					#CAMBIO 1-2, variabole que necesito para el 1.2.1, que antes era 1.2
-					var casilla_sin_revelar := getAtlasCoords(cellAtMouse) == Vector2i(0, 0)
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
 					trueForm(cellAtMouse)
 					checkWin()
-										#CAMBIO 1-2.1, aumento de tiempo por jugar
-					if casilla_sin_revelar:
-						tiempo_restante += tiempo_restante_sumado
-						tiempo_extra = tiempo_extra_original
-						$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante) 
+			
 			# si el clickea una mina (0), shinu
 					if cells[getCellIndex(cellAtMouse)] == 0:
-						#CAMBIO 1-3, crea una variable con x porcentaje de ser true, se reinicia cada vez
-						var explota := randf() > 0.25
-						#CAMBIO 1-4 Comprueba si debería explotar según la variable anterior
-						if explota==true:
-							muerte = true
-							$CanvasLayer/Timer.stop()
-							$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom"
-							showmeyalltrueforms(cellAtMouse)
-							
-						#Sino, siga siga
+						muerte = true
+						$CanvasLayer/Timer.stop()
+						$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom"
+						showmeyalltrueforms(cellAtMouse)
 						
+						#Sino, siga siga
 				else:
 					setupmines(cellAtMouse)
 					trueForm(cellAtMouse)
 					partida_empezada = true
 					$CanvasLayer/PanelEstado/LabelEstado.text = "Jugando"
 					$CanvasLayer/Timer.start()
-
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-					
 					checkWin()
 					#Click derecho
 		if event.is_action_pressed("flag"):
@@ -225,19 +203,17 @@ func showmeyalltrueforms(avoid : Vector2i) -> void:
 					set_cell(0, cellCoords, 0, Vector2i(1, 3))
 					
 #función para timer
-#CAMBIO 1-5 (toda la función) comprueba si se acabaron ambos tiempo y tiempo extra
 func _on_timer_timeout() -> void:
-	if tiempo_restante > 0:
-		tiempo_restante -= 1
-		$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-	else:
-		tiempo_extra -= 1
+	tiempo_restante -= 1
+	$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
+	
+	if tiempo_restante <= 0:
+		muerte = true
+		$CanvasLayer/Timer.stop()
+		$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
+		showmeyalltrueforms(Vector2i(-1, -1))
 		
-		if tiempo_extra <= 0:
-			muerte = true
-			$CanvasLayer/Timer.stop()
-			$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
-			showmeyalltrueforms(Vector2i(-1, -1))
+		
 # Función para ganar
 func checkWin() -> void:
 	var unrevealed := 0
@@ -254,3 +230,11 @@ func checkWin() -> void:
 		muerte = true
 		$CanvasLayer/Timer.stop()
 		$CanvasLayer/PanelEstado/LabelEstado.text = "Ganaste"
+		
+
+#CAMBIO 4-1, la linterna. lo demás está en shader
+func _process(_delta: float) -> void:
+	var mouse_pos := get_viewport().get_mouse_position()
+	var viewport_size := get_viewport_rect().size
+	var mouse_normalizado := mouse_pos / viewport_size
+	$CanvasLayer/Obscuridad.material.set_shader_parameter("mouse_pos", mouse_normalizado)

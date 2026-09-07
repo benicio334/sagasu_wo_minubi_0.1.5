@@ -7,13 +7,13 @@ extends TileMap
 const cell_columna := 16
 const cell_fila := 16
 const mine_count := int(cell_columna * cell_fila * 0.20)
-const tiempo_restante_sumado := 7
-const tiempo_extra_original := 5
-#Tiempo para jugar, cuando partida empezada es true se activa. En este caso mantener bajo 
-var tiempo_restante := 10
+# CAMBIO 5-1
+const probabilidad_pregunta := 0.20
+const probabilidad_pista := 1.0
+var tiempo_pista = randf_range(1.0,3.0)
 
-#CAMBIO 1-1 tiempo de retraso de gameover
-var tiempo_extra := 5
+#Tiempo para jugar, cuando partida empezada es true se activa 
+var tiempo_restante := 1000
 var partida_empezada := false
 var panel_size := Vector2(100, 40)
 #Muerte es gameover, cells la cantidad de casillas, cells_alrededor se usa para revelar cuando tocás una bien
@@ -22,9 +22,10 @@ var cells : Array[int]
 var cells_alrededor : Array[int]
 var offsetCoords : Vector2i
 
+
+
 # Se activa cuando empieza la escena
 func _ready() -> void:
-	# ya que se que existe lo pongo por las dudas, originalmente cambio 3.5
 	randomize()
 	setupboard()
 	#estado
@@ -39,10 +40,10 @@ func _ready() -> void:
 		viewport_size.x / board_size.x,
 		viewport_size.y / board_size.y
 	)
-	
+	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
 	scale = Vector2.ONE * scale_factor
 	position = (viewport_size - board_size * scale_factor) / 2
-	#IMPORTANTE PONER AUTOWRAP MODE EN "WORD (SMART)" ASÍ SE AJUSTAN BIEN LAS PALABRAS AL TAMAÑO QUE QUIERA
+	
 	var board_size_scaled := board_size * scale_factor
 #Pone el panel de estado a la izquierda ajustaddo según tamaño
 	$CanvasLayer/PanelEstado.position = Vector2(
@@ -71,7 +72,7 @@ func setupmines(avoid : Vector2i) -> void:
 	while getSurroundingCells(avoid, 5).has(0):
 		cells.shuffle()
 		
-		#ponemos las cells de numeros
+		#ponemos las celss de numeros
 	for y in range(cell_columna):
 		for x in range(cell_fila):
 			
@@ -88,48 +89,34 @@ func setupmines(avoid : Vector2i) -> void:
 func _input(event: InputEvent) -> void:
 	#No hace nada si hay gameover
 	if muerte==false:
-			
+		tiempo_pista = randf_range(0.1,3.0)
 			#Click izquierdo
 		if event.is_action_pressed("ShowMeYourTrueForm"):
 			var cellAtMouse: Vector2i =local_to_map(get_local_mouse_position())
+		# para que no se puedan clickear banderas
 			if getCellIndex(cellAtMouse) == -1:
 				return
-			# para que no se puedan clickear banderas
-			
 			if getAtlasCoords(cellAtMouse) != Vector2i(1, 0):
 				if cells.has(0):
-					#CAMBIO 1-2, variabole que necesito para el 1.2.1, que antes era 1.2
-					var casilla_sin_revelar := getAtlasCoords(cellAtMouse) == Vector2i(0, 0)
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
 					trueForm(cellAtMouse)
 					checkWin()
-										#CAMBIO 1-2.1, aumento de tiempo por jugar
-					if casilla_sin_revelar:
-						tiempo_restante += tiempo_restante_sumado
-						tiempo_extra = tiempo_extra_original
-						$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante) 
+					#CAMBIO 5-2, no hay nada que explicar, lo hice mil veces. La función está al final
+					if randf() < probabilidad_pista:
+						pista_mina()
 			# si el clickea una mina (0), shinu
 					if cells[getCellIndex(cellAtMouse)] == 0:
-						#CAMBIO 1-3, crea una variable con x porcentaje de ser true, se reinicia cada vez
-						var explota := randf() > 0.25
-						#CAMBIO 1-4 Comprueba si debería explotar según la variable anterior
-						if explota==true:
-							muerte = true
-							$CanvasLayer/Timer.stop()
-							$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom"
-							showmeyalltrueforms(cellAtMouse)
-							
-						#Sino, siga siga
+						muerte = true
+						$CanvasLayer/Timer.stop()
+						$CanvasLayer/PanelEstado/LabelEstado.text = "Kaboom"
+						showmeyalltrueforms(cellAtMouse)
 						
+						#Sino, siga siga
 				else:
 					setupmines(cellAtMouse)
 					trueForm(cellAtMouse)
 					partida_empezada = true
 					$CanvasLayer/PanelEstado/LabelEstado.text = "Jugando"
 					$CanvasLayer/Timer.start()
-
-					$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-					
 					checkWin()
 					#Click derecho
 		if event.is_action_pressed("flag"):
@@ -137,7 +124,8 @@ func _input(event: InputEvent) -> void:
 			# Si es casilla sin ver
 			if getCellIndex(cellAtMouse) == -1:
 				return
-			if getAtlasCoords(cellAtMouse) == Vector2i(0, 0):
+				#5-2.7, ahora también comprueba si es !
+			if getAtlasCoords(cellAtMouse) == Vector2i(0, 0) or getAtlasCoords(cellAtMouse) == Vector2i(3, 3):
 				# Hace casilla con flag
 				set_cell(0, cellAtMouse, 0, Vector2i(1, 0))
 				# Si es casilla con flag
@@ -146,12 +134,13 @@ func _input(event: InputEvent) -> void:
 				set_cell(0, cellAtMouse, 0, Vector2i(0, 0))
 				
 # Evento cuando click derecho 
+# CAMBIO 5-2, ahora hay un un if con el maravilloso randf para determinar si la pista no está 
 func trueForm(cellCoords : Vector2i) -> void:
-	# Codigo de las casillas en la textura
 	var cellIndex : int
 	cellIndex = getCellIndex(cellCoords)
 	
 	var atlasCoords : Vector2i
+	
 	match cells[cellIndex]:
 		-1: atlasCoords = Vector2i(3,0) # Empty cell
 		0: atlasCoords = Vector2i(0,3) # Mine
@@ -164,11 +153,17 @@ func trueForm(cellCoords : Vector2i) -> void:
 		7: atlasCoords = Vector2i(2, 2)
 		8: atlasCoords = Vector2i(3, 2)
 	
+# 5-2.1 comprueba si es número
+	if cells[cellIndex] >= 1 && cells[cellIndex] <= 8:
+# 2,3 es el ?
+		if randf() < probabilidad_pregunta:
+			atlasCoords = Vector2i(2, 3)
+	
 	set_cell(0, cellCoords, 0, atlasCoords)
-# Si está sin revelar, revela este y su alrededor
+	
+	# Si está sin revelar, revela este y su alrededor
 	if cells[cellIndex] == -1:
 		trueformalrededor(cellCoords)
-		
 
 
 # convierte la coordenada del click del mouse en una posición del array de las casillas
@@ -225,19 +220,17 @@ func showmeyalltrueforms(avoid : Vector2i) -> void:
 					set_cell(0, cellCoords, 0, Vector2i(1, 3))
 					
 #función para timer
-#CAMBIO 1-5 (toda la función) comprueba si se acabaron ambos tiempo y tiempo extra
 func _on_timer_timeout() -> void:
-	if tiempo_restante > 0:
-		tiempo_restante -= 1
-		$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
-	else:
-		tiempo_extra -= 1
+	tiempo_restante -= 1
+	$CanvasLayer/PanelTiempo/LabelTiempo.text = str(tiempo_restante)
+	
+	if tiempo_restante <= 0:
+		muerte = true
+		$CanvasLayer/Timer.stop()
+		$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
+		showmeyalltrueforms(Vector2i(-1, -1))
 		
-		if tiempo_extra <= 0:
-			muerte = true
-			$CanvasLayer/Timer.stop()
-			$CanvasLayer/PanelEstado/LabelEstado.text = "Se acabó el tiempo"
-			showmeyalltrueforms(Vector2i(-1, -1))
+		
 # Función para ganar
 func checkWin() -> void:
 	var unrevealed := 0
@@ -254,3 +247,31 @@ func checkWin() -> void:
 		muerte = true
 		$CanvasLayer/Timer.stop()
 		$CanvasLayer/PanelEstado/LabelEstado.text = "Ganaste"
+#5-2.1 la función
+func pista_mina() -> void:
+	# 5-2.2 hace lo mismo que las otras funciones quer buscan minas
+	var minas := []
+	
+	for y in range(cell_columna):
+		for x in range(cell_fila):
+			var cellCoords := Vector2i(x, y)
+			
+			if cells[getCellIndex(cellCoords)] == 0:
+				if getAtlasCoords(cellCoords) == Vector2i(0, 0):
+					minas.append(cellCoords)
+	
+	# 5-2.3 si no hay minas sin revelar no hace nada. 
+	# Por si acaso, porque no debería ser posible, porque ya hubieras ganado
+	if minas.is_empty():
+		return
+	
+	# 5-2.4 agarra la posición de una mina random dentro del array del 5-2.2
+	var mina = minas.pick_random()
+	# 3,3 es el !
+	set_cell(0, mina, 0, Vector2i(3, 3))
+# 5-2.5 el await awaitea el tiempo de la variable antes de desaparecer el !
+	await get_tree().create_timer(tiempo_pista).timeout
+	
+	# 5-6 quita el ! si sigue estando ahí, sino te podría sacar una bandera
+	if getAtlasCoords(mina) == Vector2i(3, 3):
+		set_cell(0, mina, 0, Vector2i(0, 0))
